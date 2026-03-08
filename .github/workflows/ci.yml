@@ -11,7 +11,7 @@ env:
 
 jobs:
   check:
-    name: Security & Quality
+    name: Quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +23,16 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Clippy Lint
         run: cargo clippy -- -D warnings
-      # Fixed the action name for security audit
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
       - name: Security Audit
-        uses: rustsec/audit-check-action@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit
 
   test:
     name: Build & Test

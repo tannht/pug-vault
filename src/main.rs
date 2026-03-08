@@ -212,4 +212,5 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-\n// Built with love by PubPug 🐶
+
+// Built with love by PubPug 🐶
