@@ -53,14 +53,13 @@ struct Vault {
 impl Vault {
     fn derive_key(password: &str) -> Result<[u8; 32]> {
         let salt = SaltString::from_b64("cHVnLXNhbHQtdjE")
-            .map_err(|_| anyhow!("Salt error"))?;
+            .map_err(|_| anyhow!("Salt derivation error"))?;
         let argon2 = Argon2::default();
         let hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|e| anyhow!("KDF error: {}", e))?;
         
         let mut key = [0u8; 32];
-        // Correct way to access the hash bytes in Argon2 v0.5
         let hash_bytes = hash.hash.ok_or_else(|| anyhow!("Hash derivation failed"))?;
         key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
         Ok(key)
@@ -82,7 +81,7 @@ impl Vault {
         let encrypted_hex = fs::read_to_string(&self.data_file)?;
         let parts: Vec<&str> = encrypted_hex.split(':').collect();
         if parts.len() != 3 {
-            return Err(anyhow!("Corrupted vault file."));
+            return Err(anyhow!("Corrupted vault file structure."));
         }
 
         let iv = hex::decode(parts[0])?;
@@ -156,7 +155,7 @@ fn main() -> Result<()> {
         Commands::List => {
             let data = vault.read_data()?;
             if data.secrets.is_empty() {
-                println!("Hầm trống rỗng! 🦴");
+                println!("Vault is empty! 🦴");
             } else {
                 for k in data.secrets.keys() {
                     println!("- {}", k);
@@ -173,33 +172,33 @@ fn main() -> Result<()> {
             }
         }
         Commands::ChangePassword => {
-            let data = vault.read_data()?;
+            let data = vault.read_data()?; // Verify old password first
             
-            println!("🐶 Đang đổi mật mã hầm bí mật...");
-            print!("🔑 Nhập mật mã MỚI: ");
+            println!("🐶 Changing Master Password...");
+            print!("🔑 Enter NEW Master Password: ");
             io::stdout().flush()?;
             let mut new_pass = String::new();
             io::stdin().read_line(&mut new_pass)?;
             let new_pass = new_pass.trim();
 
-            print!("🔄 Nhập lại mật mã MỚI để xác nhận: ");
+            print!("🔄 Re-enter NEW Master Password to confirm: ");
             io::stdout().flush()?;
             let mut confirm_pass = String::new();
             io::stdin().read_line(&mut confirm_pass)?;
             let confirm_pass = confirm_pass.trim();
 
             if new_pass != confirm_pass {
-                return Err(anyhow!("❌ Lỗi: Mật mã xác nhận không khớp! Gâu!"));
+                return Err(anyhow!("❌ Error: Confirmation password does not match!"));
             }
 
             if new_pass.is_empty() {
-                return Err(anyhow!("❌ Lỗi: Mật mã mới không được để trống!"));
+                return Err(anyhow!("❌ Error: New password cannot be empty!"));
             }
 
             let new_key = Vault::derive_key(new_pass)?;
             Vault::write_data_with_key(&vault.data_file, &new_key, &data)?;
             
-            println!("🎉 Chốt đơn! Mật mã đã được thay đổi thành công. Gâu gâu! 🐶");
+            println!("🎉 Success! Master Password has been changed. Gâu gâu! 🐶");
         }
     }
 
