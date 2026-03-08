@@ -1,5 +1,6 @@
 /target
 /target/release/pug-vault
 Cargo.lock
-**/*.rs.bk
+.env
 .pug_vault_rust_data
+*.log
