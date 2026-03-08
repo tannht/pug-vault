@@ -60,7 +60,8 @@ impl Vault {
             .map_err(|e| anyhow!("KDF error: {}", e))?;
         
         let mut key = [0u8; 32];
-        let hash_bytes = hash.hash().ok_or_else(|| anyhow!("Hash derivation failed"))?;
+        // Correct way to access the hash bytes in Argon2 v0.5
+        let hash_bytes = hash.hash.ok_or_else(|| anyhow!("Hash derivation failed"))?;
         key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
         Ok(key)
     }
@@ -172,7 +173,7 @@ fn main() -> Result<()> {
             }
         }
         Commands::ChangePassword => {
-            let data = vault.read_data()?; // Verify old password first
+            let data = vault.read_data()?;
             
             println!("🐶 Đang đổi mật mã hầm bí mật...");
             print!("🔑 Nhập mật mã MỚI: ");
