@@ -1,5 +1,5 @@
 /target
-/target/release/pug-vault
 .env
 .pug_vault_rust_data
 *.log
+.crush/
