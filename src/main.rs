@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
+use anyhow::{anyhow, Result};
 use argon2::{
     password_hash::{PasswordHasher, SaltString},
     Argon2,
@@ -58,7 +58,7 @@ impl Vault {
         let hash = argon2
             .hash_password(password.as_bytes(), &salt)
             .map_err(|e| anyhow!("KDF error: {}", e))?;
-        
+
         let mut key = [0u8; 32];
         let hash_bytes = hash.hash.ok_or_else(|| anyhow!("Hash derivation failed"))?;
         key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
@@ -67,7 +67,8 @@ impl Vault {
 
     fn new(password: &str) -> Result<Self> {
         let key = Self::derive_key(password)?;
-        let mut data_file = dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
+        let mut data_file =
+            dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
         data_file.push(".pug_vault_rust_data");
 
         Ok(Self { key, data_file })
@@ -75,7 +76,9 @@ impl Vault {
 
     fn read_data(&self) -> Result<VaultData> {
         if !self.data_file.exists() {
-            return Ok(VaultData { secrets: HashMap::new() });
+            return Ok(VaultData {
+                secrets: HashMap::new(),
+            });
         }
 
         let encrypted_hex = fs::read_to_string(&self.data_file)?;
@@ -90,7 +93,7 @@ impl Vault {
 
         let cipher = Aes256Gcm::new(&self.key.into());
         let nonce = Nonce::from_slice(&iv);
-        
+
         let mut combined = ciphertext;
         combined.extend_from_slice(&tag);
 
@@ -107,7 +110,7 @@ impl Vault {
 
         let cipher = Aes256Gcm::new(key.into());
         let nonce = Nonce::from_slice(&iv);
-        
+
         let plaintext = serde_json::to_vec(data)?;
         let ciphertext_with_tag = cipher
             .encrypt(nonce, plaintext.as_slice())
@@ -117,12 +120,17 @@ impl Vault {
         let ciphertext = &ciphertext_with_tag[..tag_pos];
         let tag = &ciphertext_with_tag[tag_pos..];
 
-        let output = format!("{}:{}:{}", hex::encode(iv), hex::encode(tag), hex::encode(ciphertext));
-        
+        let output = format!(
+            "{}:{}:{}",
+            hex::encode(iv),
+            hex::encode(tag),
+            hex::encode(ciphertext)
+        );
+
         let mut file = File::create(data_file)?;
         fs::set_permissions(data_file, fs::Permissions::from_mode(0o600))?;
         file.write_all(output.as_bytes())?;
-        
+
         Ok(())
     }
 
@@ -173,7 +181,7 @@ fn main() -> Result<()> {
         }
         Commands::ChangePassword => {
             let data = vault.read_data()?; // Verify old password first
-            
+
             println!("🐶 Changing Master Password...");
             print!("🔑 Enter NEW Master Password: ");
             io::stdout().flush()?;
@@ -197,7 +205,7 @@ fn main() -> Result<()> {
 
             let new_key = Vault::derive_key(new_pass)?;
             Vault::write_data_with_key(&vault.data_file, &new_key, &data)?;
-            
+
             println!("🎉 Success! Master Password has been changed. Gâu gâu! 🐶");
         }
     }
