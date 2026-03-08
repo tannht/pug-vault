@@ -1,0 +1,17 @@
+[package]
+name = "pug-vault"
+version = "1.0.0"
+edition = "2021"
+authors = ["Hoàng Tân <tannht@github.com>", "PubPug <pubpug@metoolzy.com>"]
+description = "🐶 PugVault - Ultra-fast, secure, and locally encrypted secret store for AI agents."
+
+[dependencies]
+aes-gcm = "0.10.3"
+argon2 = "0.5.3"
+clap = { version = "4.5.4", features = ["derive"] }
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+hex = "0.4.3"
+rand = "0.8.5"
+anyhow = "1.0.81"
+dirs = "5.0.1"
