@@ -1,0 +1,48 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Tag & Release
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, 'skip ci')"
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
+
+      - name: Minor Version Bump
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Optimized Binary
+        run: |
+          cargo build --release
+          strip target/release/pug-vault
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: PugVault ${{ steps.tag_version.outputs.new_tag }} 🐶
+          files: target/release/pug-vault
+          body: |
+            Automated Release for ${{ steps.tag_version.outputs.new_tag }}
+            
+            Changes in this version:
+            ${{ github.event.head_commit.message }}
+          draft: false
+          prerelease: false
