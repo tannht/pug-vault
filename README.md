@@ -16,6 +16,7 @@ pug-vault set <key> <value>   # Store
 pug-vault get <key>           # Retrieve
 pug-vault list                # List all
 pug-vault delete <key>        # Remove
+pug-vault change-password     # Change Master Password
 ```
 
 ## 🔒 Security

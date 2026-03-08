@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::{self, File},
-    io::Write,
+    io::{self, Write},
     os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
@@ -36,9 +36,11 @@ enum Commands {
     List,
     /// Remove a secret
     Delete { key: String },
+    /// Change the Master Password
+    ChangePassword,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct VaultData {
     secrets: HashMap<String, String>,
 }
@@ -49,7 +51,7 @@ struct Vault {
 }
 
 impl Vault {
-    fn new(password: &str) -> Result<Self> {
+    fn derive_key(password: &str) -> Result<[u8; 32]> {
         let salt = SaltString::from_b64("cHVnLXNhbHQtdjE")
             .map_err(|_| anyhow!("Salt error"))?;
         let argon2 = Argon2::default();
@@ -58,9 +60,13 @@ impl Vault {
             .map_err(|e| anyhow!("KDF error: {}", e))?;
         
         let mut key = [0u8; 32];
-        let hash_bytes = hash.hash.ok_or_else(|| anyhow!("Hash derivation failed"))?;
+        let hash_bytes = hash.hash().ok_or_else(|| anyhow!("Hash derivation failed"))?;
         key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
+        Ok(key)
+    }
 
+    fn new(password: &str) -> Result<Self> {
+        let key = Self::derive_key(password)?;
         let mut data_file = dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
         data_file.push(".pug_vault_rust_data");
 
@@ -95,11 +101,11 @@ impl Vault {
         Ok(serde_json::from_slice(&decrypted)?)
     }
 
-    fn write_data(&self, data: &VaultData) -> Result<()> {
+    fn write_data_with_key(data_file: &PathBuf, key: &[u8; 32], data: &VaultData) -> Result<()> {
         let mut iv = [0u8; 12];
         OsRng.fill_bytes(&mut iv);
 
-        let cipher = Aes256Gcm::new(&self.key.into());
+        let cipher = Aes256Gcm::new(key.into());
         let nonce = Nonce::from_slice(&iv);
         
         let plaintext = serde_json::to_vec(data)?;
@@ -113,11 +119,15 @@ impl Vault {
 
         let output = format!("{}:{}:{}", hex::encode(iv), hex::encode(tag), hex::encode(ciphertext));
         
-        let mut file = File::create(&self.data_file)?;
-        fs::set_permissions(&self.data_file, fs::Permissions::from_mode(0o600))?;
+        let mut file = File::create(data_file)?;
+        fs::set_permissions(data_file, fs::Permissions::from_mode(0o600))?;
         file.write_all(output.as_bytes())?;
         
         Ok(())
+    }
+
+    fn write_data(&self, data: &VaultData) -> Result<()> {
+        Self::write_data_with_key(&self.data_file, &self.key, data)
     }
 }
 
@@ -160,6 +170,35 @@ fn main() -> Result<()> {
             } else {
                 return Err(anyhow!("Secret '{}' not found.", key));
             }
+        }
+        Commands::ChangePassword => {
+            let data = vault.read_data()?; // Verify old password first
+            
+            println!("🐶 Đang đổi mật mã hầm bí mật...");
+            print!("🔑 Nhập mật mã MỚI: ");
+            io::stdout().flush()?;
+            let mut new_pass = String::new();
+            io::stdin().read_line(&mut new_pass)?;
+            let new_pass = new_pass.trim();
+
+            print!("🔄 Nhập lại mật mã MỚI để xác nhận: ");
+            io::stdout().flush()?;
+            let mut confirm_pass = String::new();
+            io::stdin().read_line(&mut confirm_pass)?;
+            let confirm_pass = confirm_pass.trim();
+
+            if new_pass != confirm_pass {
+                return Err(anyhow!("❌ Lỗi: Mật mã xác nhận không khớp! Gâu!"));
+            }
+
+            if new_pass.is_empty() {
+                return Err(anyhow!("❌ Lỗi: Mật mã mới không được để trống!"));
+            }
+
+            let new_key = Vault::derive_key(new_pass)?;
+            Vault::write_data_with_key(&vault.data_file, &new_key, &data)?;
+            
+            println!("🎉 Chốt đơn! Mật mã đã được thay đổi thành công. Gâu gâu! 🐶");
         }
     }
 
