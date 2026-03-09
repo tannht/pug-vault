@@ -18,7 +18,7 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VaultData {
     pub secrets: HashMap<String, String>,
 }
