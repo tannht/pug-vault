@@ -1,22 +1,7 @@
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
-};
+use pug_vault::{Vault, VaultData};
 use anyhow::{anyhow, Result};
-use argon2::{
-    password_hash::{PasswordHasher, SaltString},
-    Argon2,
-};
 use clap::{Parser, Subcommand};
-use rand::{rngs::OsRng, RngCore};
-use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fs::{self, File},
-    io::{self, Write},
-    os::unix::fs::PermissionsExt,
-    path::PathBuf,
-};
+use std::{io::{self, Write}};
 
 #[derive(Parser)]
 #[command(name = "pug-vault")]
@@ -38,105 +23,6 @@ enum Commands {
     Delete { key: String },
     /// Change the Master Password
     ChangePassword,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-struct VaultData {
-    secrets: HashMap<String, String>,
-}
-
-struct Vault {
-    key: [u8; 32],
-    data_file: PathBuf,
-}
-
-impl Vault {
-    fn derive_key(password: &str) -> Result<[u8; 32]> {
-        let salt = SaltString::from_b64("cHVnLXNhbHQtdjE")
-            .map_err(|_| anyhow!("Salt derivation error"))?;
-        let argon2 = Argon2::default();
-        let hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| anyhow!("KDF error: {}", e))?;
-
-        let mut key = [0u8; 32];
-        let hash_bytes = hash.hash.ok_or_else(|| anyhow!("Hash derivation failed"))?;
-        key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
-        Ok(key)
-    }
-
-    fn new(password: &str) -> Result<Self> {
-        let key = Self::derive_key(password)?;
-        let mut data_file =
-            dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-        data_file.push(".pug_vault_rust_data");
-
-        Ok(Self { key, data_file })
-    }
-
-    fn read_data(&self) -> Result<VaultData> {
-        if !self.data_file.exists() {
-            return Ok(VaultData {
-                secrets: HashMap::new(),
-            });
-        }
-
-        let encrypted_hex = fs::read_to_string(&self.data_file)?;
-        let parts: Vec<&str> = encrypted_hex.split(':').collect();
-        if parts.len() != 3 {
-            return Err(anyhow!("Corrupted vault file structure."));
-        }
-
-        let iv = hex::decode(parts[0])?;
-        let tag = hex::decode(parts[1])?;
-        let ciphertext = hex::decode(parts[2])?;
-
-        let cipher = Aes256Gcm::new(&self.key.into());
-        let nonce = Nonce::from_slice(&iv);
-
-        let mut combined = ciphertext;
-        combined.extend_from_slice(&tag);
-
-        let decrypted = cipher
-            .decrypt(nonce, combined.as_slice())
-            .map_err(|_| anyhow!("Invalid Master Password or corrupted data."))?;
-
-        Ok(serde_json::from_slice(&decrypted)?)
-    }
-
-    fn write_data_with_key(data_file: &PathBuf, key: &[u8; 32], data: &VaultData) -> Result<()> {
-        let mut iv = [0u8; 12];
-        OsRng.fill_bytes(&mut iv);
-
-        let cipher = Aes256Gcm::new(key.into());
-        let nonce = Nonce::from_slice(&iv);
-
-        let plaintext = serde_json::to_vec(data)?;
-        let ciphertext_with_tag = cipher
-            .encrypt(nonce, plaintext.as_slice())
-            .map_err(|e| anyhow!("Encryption error: {}", e))?;
-
-        let tag_pos = ciphertext_with_tag.len() - 16;
-        let ciphertext = &ciphertext_with_tag[..tag_pos];
-        let tag = &ciphertext_with_tag[tag_pos..];
-
-        let output = format!(
-            "{}:{}:{}",
-            hex::encode(iv),
-            hex::encode(tag),
-            hex::encode(ciphertext)
-        );
-
-        let mut file = File::create(data_file)?;
-        fs::set_permissions(data_file, fs::Permissions::from_mode(0o600))?;
-        file.write_all(output.as_bytes())?;
-
-        Ok(())
-    }
-
-    fn write_data(&self, data: &VaultData) -> Result<()> {
-        Self::write_data_with_key(&self.data_file, &self.key, data)
-    }
 }
 
 fn main() -> Result<()> {

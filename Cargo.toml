@@ -15,3 +15,7 @@ hex = "0.4.3"
 rand = "0.8.5"
 anyhow = "1.0.81"
 dirs = "5.0.1"
+
+[dev-dependencies]
+tempfile = "3.8"
+hex = "0.4.3"
