@@ -1,7 +1,7 @@
-use pug_vault::{Vault, VaultData};
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
-use std::{io::{self, Write}};
+use pug_vault::Vault;
+use std::io::{self, Write};
 
 #[derive(Parser)]
 #[command(name = "pug-vault")]
