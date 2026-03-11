@@ -16,12 +16,11 @@ mod security_tests {
         vault.write_data(&test_data).unwrap();
 
         // Check file permissions (should be 600 - owner read/write only)
-        let metadata = fs::metadata(&vault.data_file).unwrap();
-        let permissions = metadata.permissions();
-
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&vault.data_file).unwrap();
+            let permissions = metadata.permissions();
             let mode = permissions.mode();
             assert_eq!(mode & 0o777, 0o600, "File should have 600 permissions");
         }
@@ -144,9 +143,11 @@ mod security_tests {
         let original_content = fs::read_to_string(&vault.data_file).unwrap();
         let mut parts: Vec<&str> = original_content.split(':').collect();
 
-        // Tamper with the ciphertext (change one character)
-        let mut tampered_ciphertext = parts[2].to_string();
-        tampered_ciphertext.replace_range(0..2, "FF");
+        // Tamper with the ciphertext by flipping bits (guaranteed to change)
+        let mut ciphertext_bytes = hex::decode(parts[2]).unwrap();
+        // Flip every bit in the first byte — guarantees a different value
+        ciphertext_bytes[0] ^= 0xFF;
+        let tampered_ciphertext = hex::encode(&ciphertext_bytes);
         parts[2] = &tampered_ciphertext;
 
         let tampered_content = parts.join(":");

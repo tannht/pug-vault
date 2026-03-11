@@ -10,11 +10,12 @@ use argon2::{
 };
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     collections::HashMap,
     fs::{self, File},
     io::Write,
-    os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
 
@@ -45,9 +46,14 @@ impl Vault {
 
     pub fn new(password: &str) -> Result<Self> {
         let key = Self::derive_key(password)?;
-        let mut data_file =
-            dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-        data_file.push(".pug_vault_rust_data");
+        let data_file = if let Ok(path) = std::env::var("PUG_VAULT_PATH") {
+            PathBuf::from(path)
+        } else {
+            let mut path =
+                dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
+            path.push(".pug_vault_rust_data");
+            path
+        };
 
         Ok(Self { key, data_file })
     }
@@ -110,6 +116,7 @@ impl Vault {
         );
 
         let mut file = File::create(data_file)?;
+        #[cfg(unix)]
         fs::set_permissions(data_file, fs::Permissions::from_mode(0o600))?;
         file.write_all(output.as_bytes())?;
 
@@ -265,10 +272,14 @@ mod tests {
         Vault::write_data_with_key(&data_file, &test_key, &test_data).unwrap();
         assert!(data_file.exists());
 
-        // Verify file permissions are secure (600)
-        let metadata = fs::metadata(&data_file).unwrap();
-        let permissions = metadata.permissions();
-        assert_eq!(permissions.mode() & 0o777, 0o600);
+        // Verify file permissions are secure (600) - Unix only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&data_file).unwrap();
+            let permissions = metadata.permissions();
+            assert_eq!(permissions.mode() & 0o777, 0o600);
+        }
 
         // Cleanup
         fs::remove_file(&data_file).ok();
