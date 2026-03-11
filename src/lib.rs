@@ -46,9 +46,14 @@ impl Vault {
 
     pub fn new(password: &str) -> Result<Self> {
         let key = Self::derive_key(password)?;
-        let mut data_file =
-            dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-        data_file.push(".pug_vault_rust_data");
+        let data_file = if let Ok(path) = std::env::var("PUG_VAULT_PATH") {
+            PathBuf::from(path)
+        } else {
+            let mut path =
+                dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
+            path.push(".pug_vault_rust_data");
+            path
+        };
 
         Ok(Self { key, data_file })
     }
