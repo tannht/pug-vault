@@ -10,14 +10,14 @@ use argon2::{
 };
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     collections::HashMap,
     fs::{self, File},
     io::Write,
     path::PathBuf,
 };
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VaultData {
