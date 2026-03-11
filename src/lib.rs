@@ -14,9 +14,10 @@ use std::{
     collections::HashMap,
     fs::{self, File},
     io::Write,
-    os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VaultData {
@@ -110,6 +111,7 @@ impl Vault {
         );
 
         let mut file = File::create(data_file)?;
+        #[cfg(unix)]
         fs::set_permissions(data_file, fs::Permissions::from_mode(0o600))?;
         file.write_all(output.as_bytes())?;
 
@@ -265,10 +267,14 @@ mod tests {
         Vault::write_data_with_key(&data_file, &test_key, &test_data).unwrap();
         assert!(data_file.exists());
 
-        // Verify file permissions are secure (600)
-        let metadata = fs::metadata(&data_file).unwrap();
-        let permissions = metadata.permissions();
-        assert_eq!(permissions.mode() & 0o777, 0o600);
+        // Verify file permissions are secure (600) - Unix only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::metadata(&data_file).unwrap();
+            let permissions = metadata.permissions();
+            assert_eq!(permissions.mode() & 0o777, 0o600);
+        }
 
         // Cleanup
         fs::remove_file(&data_file).ok();

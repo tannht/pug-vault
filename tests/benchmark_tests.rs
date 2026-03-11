@@ -1,7 +1,6 @@
 use pug_vault::{Vault, VaultData};
 use std::collections::HashMap;
 use std::time::Instant;
-use tempfile::NamedTempFile;
 
 #[cfg(test)]
 mod benchmarks {
@@ -93,7 +92,6 @@ mod benchmarks {
 
     #[test]
     fn stress_test_concurrent_operations() {
-        use std::sync::Arc;
         use std::thread;
 
         let password = "concurrent_test_password";
