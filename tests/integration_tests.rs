@@ -250,3 +250,44 @@ fn test_unicode_secrets() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert_eq!(stdout.trim(), unicode_value);
 }
+
+#[test]
+fn test_cli_update_does_not_require_password() {
+    // The 'update' command should NOT require PUG_MASTER_PASSWORD
+    // We just verify it starts correctly (shows version info) without the env var.
+    // It may fail due to network/cargo availability in CI, but should NOT fail
+    // with "PUG_MASTER_PASSWORD environment variable not set".
+    let output = Command::new("cargo")
+        .args(["run", "--", "update"])
+        .env_remove("PUG_MASTER_PASSWORD")
+        .output()
+        .expect("Failed to execute update command");
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Should NOT ask for master password
+    assert!(
+        !stderr.contains("PUG_MASTER_PASSWORD environment variable not set"),
+        "update command should not require PUG_MASTER_PASSWORD"
+    );
+
+    // Should show the updater header
+    assert!(
+        stdout.contains("PugVault Updater"),
+        "Should show updater header, got stdout: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_cli_version_flag() {
+    let output = Command::new("cargo")
+        .args(["run", "--", "--version"])
+        .output()
+        .expect("Failed to execute version command");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("pug-vault"));
+}
